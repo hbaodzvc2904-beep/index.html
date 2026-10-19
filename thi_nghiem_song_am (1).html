@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thí nghiệm sóng âm</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Bố cục: cột mô phỏng (ống truyền âm + đồ thị) cố định bên trái, bảng điều khiển bên phải;
+   kết quả, thí nghiệm có hướng dẫn và câu hỏi dự đoán xếp bên dưới. Điện thoại: một cột. */
+:root{
+  --bg:#e9eff4; --surface:#ffffff; --surface-2:#f2f6f9; --ink:#0e2230; --muted:#4f6577; --line:#cbd8e2;
+  --accent:#08788a; --accent-ink:#ffffff; --accent-soft:#d6edf1;
+  --wave-a:#d4520f; --wave-b:#6445cc; --comp:#d63a34; --rare:#2c78d6; --mol:#2f4d66; --tube:#e2ecf3;
+  --good:#17804a; --good-soft:#dcf2e6; --bad:#b8321f; --bad-soft:#f9e0dc;
+  --font-display:"Bricolage Grotesque","Be Vietnam Pro",system-ui,sans-serif;
+  --font-body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1721; --surface:#12222e; --surface-2:#182c3a; --ink:#e6f0f6; --muted:#93a9b8; --line:#2a4356;
+    --accent:#3cc0d2; --accent-ink:#06202a; --accent-soft:#16404b;
+    --wave-a:#ff8a4c; --wave-b:#a99aff; --comp:#ff6b60; --rare:#5aa2ff; --mol:#a9c4d8; --tube:#0e1c27;
+    --good:#4cc98a; --good-soft:#15382a; --bad:#ff8174; --bad-soft:#41211d;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1721; --surface:#12222e; --surface-2:#182c3a; --ink:#e6f0f6; --muted:#93a9b8; --line:#2a4356;
+  --accent:#3cc0d2; --accent-ink:#06202a; --accent-soft:#16404b;
+  --wave-a:#ff8a4c; --wave-b:#a99aff; --comp:#ff6b60; --rare:#5aa2ff; --mol:#a9c4d8; --tube:#0e1c27;
+  --good:#4cc98a; --good-soft:#15382a; --bad:#ff8174; --bad-soft:#41211d;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:15px; line-height:1.55;
+  padding-block:20px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.app{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--font-display);margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(26px,4vw,38px);letter-spacing:-.01em}
+h2{font-size:19px}
+h3{font-size:16px}
+p{margin:0}
+.top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:12px 28px;align-items:end}
+.sub{color:var(--muted);margin-top:6px}
+.sci{font-size:13.5px;color:var(--muted);border-left:3px solid var(--accent);padding-left:12px;max-width:68ch}
+.sci strong{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.card-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px;margin-bottom:12px}
+.statline{font-family:var(--font-mono);font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:961px) and (min-height:760px){ .sim{position:sticky;top:12px} }
+@media (max-width:960px){ .grid,.two,.top{grid-template-columns:minmax(0,1fr)} }
+
+/* khu vực mô phỏng */
+.layers{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:12px}
+.chk{display:inline-flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
+.chk input{width:17px;height:17px;accent-color:var(--accent);margin:0}
+.stage{display:flex;flex-direction:column;gap:8px;min-width:0}
+.stage canvas{display:block;width:100%;border-radius:8px;background:var(--surface-2);touch-action:manipulation}
+#cv-tube{cursor:crosshair}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 18px;margin:12px 0 0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
+.legend li{display:flex;gap:8px;align-items:center;min-width:0}
+.sw{flex:none;width:14px;height:14px;border-radius:3px;display:inline-block}
+.sw.dot{border-radius:50%;width:10px;height:10px;margin:0 2px;background:var(--mol)}
+.sw.trace{border-radius:50%;width:11px;height:11px;background:var(--wave-a);margin:0 2px}
+.sw.comp{background:var(--comp)}
+.sw.rare{background:var(--rare)}
+.sw.curve{height:3px;width:16px;border-radius:2px;background:var(--wave-a)}
+.sw.dash{height:0;width:16px;border-top:2px dashed var(--muted);border-radius:0;background:none}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+
+/* bảng điều khiển */
+.ctrl{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-weight:500;font-size:14px;padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer;min-height:38px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.btn.sm{padding:4px 10px;min-height:30px;font-size:13px;font-family:var(--font-mono)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grp{display:flex;flex-direction:column;gap:6px;border:0;margin:0;padding:0;min-width:0}
+.lbl,legend{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.seg label{position:relative;flex:1 1 auto;text-align:center;font-size:13.5px;padding:7px 10px;cursor:pointer;border-right:1px solid var(--line);min-width:0}
+.seg label:last-child{border-right:0}
+.seg input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.seg label:has(input:checked){background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+.wave{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px;margin:0;min-width:0}
+.wave legend{padding:0 6px;font-size:13px}
+.wave.a legend{color:var(--wave-a)} .wave.b legend{color:var(--wave-b)}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-weight:600;font-size:14px}
+.unit{font-weight:400;color:var(--muted);font-size:12.5px}
+.srow{display:flex;align-items:center;gap:10px}
+.srow input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:26px}
+.val{font-family:var(--font-mono);font-weight:600;min-width:3.4ch;text-align:right;font-size:14px}
+.numwrap{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:13px;white-space:nowrap}
+.numwrap input{width:7ch;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.mini{display:flex;gap:6px}
+.hint{font-size:12.5px;color:var(--muted)}
+.vrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.vrow label{font-size:14px;font-weight:600}
+select{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);max-width:100%}
+
+/* kết quả */
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.n{font-family:var(--font-mono);font-size:13.5px;white-space:nowrap}
+th.c-a{color:var(--wave-a)} th.c-b{color:var(--wave-b)}
+.cm{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.cm li{padding-left:14px;position:relative}
+.cm li::before{content:"";position:absolute;left:0;top:.65em;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.cm li.ref{background:var(--accent-soft);border-radius:8px;padding:8px 10px 8px 22px}
+.cm li.ref::before{left:9px}
+.cmpbox{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface-2)}
+.cmpbox h3{margin-bottom:8px}
+
+/* thí nghiệm */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tab{font:inherit;font-size:13.5px;font-weight:500;padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.exp-goal{margin:8px 0 10px}
+.steps{margin:10px 0;padding-left:22px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+details{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:10px;background:var(--surface-2)}
+summary{cursor:pointer;font-weight:600;font-size:14px}
+details p{margin-top:8px;font-size:14px}
+.exp-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.log{margin-top:14px}
+.log h3{margin-bottom:6px}
+.empty{font-size:13px;color:var(--muted)}
+
+/* câu hỏi */
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px}
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;min-width:0}
+.q h3{font-size:15px;font-family:var(--font-body);font-weight:600;line-height:1.4}
+.opts{display:flex;flex-direction:column;gap:6px;border:0;padding:0;margin:0}
+.opt{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;font-size:14px}
+.opt input{margin-top:3px;accent-color:var(--accent)}
+.opt:has(input:checked){border-color:var(--accent)}
+.fb{font-size:14px;padding:9px 11px;border-radius:8px}
+.fb.ok{background:var(--good-soft);color:var(--ink);border:1px solid var(--good)}
+.fb.bad{background:var(--bad-soft);color:var(--ink);border:1px solid var(--bad)}
+.score{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.limits ul{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.limits li strong{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){ *{scroll-behavior:auto!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Thí nghiệm sóng âm</h1>
+      <p class="sub">Mô hình sóng dọc trong môi trường vật chất · Vật lí THPT</p>
+    </div>
+    <p class="sci"><strong>Lưu ý khoa học.</strong> Sóng âm trong không khí là sóng cơ, chủ yếu là sóng dọc. Đồ thị hình sin biểu diễn li độ hoặc biến thiên áp suất theo vị trí hoặc thời gian. Điều đó không có nghĩa các phân tử không khí chuyển động lên xuống theo hình sin như sóng ngang trên dây.</p>
+  </header>
+
+  <main class="grid">
+    <!-- A. KHU VỰC MÔ PHỎNG SÓNG -->
+    <section class="card sim" aria-labelledby="hA">
+      <div class="card-h">
+        <h2 id="hA">Khu vực mô phỏng sóng</h2>
+        <div class="statline">t = <span id="t-now">0,00</span> ms · <span id="scale-note"></span></div>
+      </div>
+      <div class="layers" role="group" aria-label="Lớp hiển thị">
+        <label class="chk"><input type="checkbox" id="ly-mol" checked> Mô hình phân tử</label>
+        <label class="chk"><input type="checkbox" id="ly-pc" checked> Vùng nén – giãn</label>
+        <label class="chk"><input type="checkbox" id="ly-graph" checked> Đồ thị sóng</label>
+        <label class="chk"><input type="checkbox" id="ly-mark" checked> Ghi chú λ, T</label>
+      </div>
+      <div class="stage" id="stage">
+        <canvas id="cv-tube" role="img" aria-label="Mô hình truyền sóng âm trong ống: nguồn âm bên trái, các phân tử, vùng nén và vùng giãn"></canvas>
+        <canvas id="cv-graph" role="img" aria-label="Đồ thị sóng âm theo vị trí hoặc theo thời gian"></canvas>
+      </div>
+      <p class="note">Nhấn hoặc chạm vào ống truyền âm để đặt điểm quan sát x₀ (dấu tam giác). Đồ thị theo thời gian được vẽ tại điểm này.</p>
+      <ul class="legend" aria-label="Chú giải">
+        <li><span class="sw dot"></span> Phân tử không khí (chấm xám, mỗi hàng là một lớp phân tử)</li>
+        <li><span class="sw trace"></span> Phân tử đánh dấu; vòng tròn rỗng là vị trí cân bằng của nó</li>
+        <li><span class="sw comp"></span> Vùng nén: phân tử xích lại gần, áp suất tăng</li>
+        <li><span class="sw rare"></span> Vùng giãn: phân tử xa nhau, áp suất giảm</li>
+        <li><span class="sw curve"></span> Đường li độ ξ (độ dời khỏi vị trí cân bằng)</li>
+        <li><span class="sw dash"></span> Đường biến thiên áp suất Δp (lệch pha 90° so với ξ)</li>
+      </ul>
+    </section>
+
+    <!-- B. BẢNG ĐIỀU KHIỂN -->
+    <aside class="card ctrl" aria-labelledby="hB">
+      <h2 id="hB">Bảng điều khiển thí nghiệm</h2>
+      <div class="row">
+        <button class="btn primary" id="btn-run" type="button">Tạm dừng</button>
+        <button class="btn" id="btn-reset" type="button">Đặt lại thí nghiệm</button>
+        <button class="btn" id="btn-slow" type="button" aria-pressed="false">Chạy chậm</button>
+        <button class="btn" id="btn-audio" type="button" aria-pressed="false">Bật âm thanh</button>
+      </div>
+      <p class="hint" id="audio-note" hidden></p>
+
+      <div class="grp" role="group" aria-labelledby="lbl-mode">
+        <div class="lbl" id="lbl-mode">Chế độ quan sát sóng</div>
+        <div class="seg">
+          <label><input type="radio" name="mode" value="space" checked> Theo vị trí</label>
+          <label><input type="radio" name="mode" value="time"> Theo thời gian</label>
+        </div>
+        <p class="hint" id="mode-note"></p>
+      </div>
+
+      <div class="grp" role="group" aria-labelledby="lbl-qty">
+        <div class="lbl" id="lbl-qty">Đại lượng vẽ trên đồ thị</div>
+        <div class="seg">
+          <label><input type="radio" name="qty" value="xi" checked> Li độ ξ</label>
+          <label><input type="radio" name="qty" value="p"> Áp suất Δp</label>
+          <label><input type="radio" name="qty" value="both"> Cả hai</label>
+        </div>
+      </div>
+
+      <fieldset class="wave a" id="grp-A"><legend id="leg-A">Sóng âm</legend><div id="ctl-A"></div></fieldset>
+      <label class="chk"><input type="checkbox" id="chk-compare"> Hiển thị thêm sóng B để so sánh hai âm</label>
+      <fieldset class="wave b" id="grp-B" hidden><legend>Sóng B</legend><div id="ctl-B"></div></fieldset>
+
+      <div class="grp" role="group" aria-labelledby="lbl-med">
+        <div class="lbl" id="lbl-med">Môi trường truyền âm</div>
+        <div class="seg">
+          <label><input type="radio" name="medium" value="air" checked> Không khí</label>
+          <label><input type="radio" name="medium" value="water"> Nước</label>
+          <label><input type="radio" name="medium" value="steel"> Thép</label>
+          <label><input type="radio" name="medium" value="vacuum"> Chân không</label>
+        </div>
+        <div class="vrow">
+          <label for="vin">Vận tốc truyền âm v</label>
+          <span class="numwrap"><input type="number" id="vin" min="1" max="10000" step="1"> m/s</span>
+          <button class="btn sm" id="vreset" type="button">Giá trị chuẩn</button>
+        </div>
+        <p class="hint" id="med-note"></p>
+      </div>
+
+      <div class="grp">
+        <label class="lbl" for="win">Cửa sổ quan sát (chiều dài ống)</label>
+        <select id="win">
+          <option value="1">1 m</option>
+          <option value="3" selected>3 m</option>
+          <option value="10">10 m</option>
+          <option value="30">30 m</option>
+          <option value="100">100 m</option>
+        </select>
+        <p class="hint">Bước sóng được vẽ đúng tỉ lệ với cửa sổ này. Thép và nước có bước sóng dài, hãy chọn cửa sổ lớn hơn để thấy trọn một bước sóng.</p>
+      </div>
+
+      <div class="grp" id="grp-asrc" hidden>
+        <label class="lbl" for="asrc">Âm thanh phát ra từ</label>
+        <select id="asrc"><option value="A">Sóng A</option><option value="B">Sóng B</option></select>
+      </div>
+    </aside>
+  </main>
+
+  <section class="two">
+    <!-- C. KẾT QUẢ VÀ GIẢI THÍCH -->
+    <article class="card" aria-labelledby="hC">
+      <div class="card-h"><h2 id="hC">Kết quả và giải thích</h2></div>
+      <div class="tblwrap" id="results"></div>
+      <ul class="cm" id="comments"></ul>
+      <div class="exp-actions">
+        <button class="btn" id="btn-ref" type="button">Ghi lại làm mốc so sánh</button>
+        <button class="btn" id="btn-refclear" type="button" hidden>Xoá mốc</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Ghi mốc, đổi một thông số, rồi đọc nhận xét tự động ở trên: phần mềm so sánh với mốc và chỉ ra điều gì đã thay đổi.</p>
+      <div class="cmpbox" id="cmpbox" hidden></div>
+    </article>
+
+    <!-- CÁC THÍ NGHIỆM -->
+    <article class="card" aria-labelledby="hE">
+      <div class="card-h"><h2 id="hE">Thí nghiệm có hướng dẫn</h2></div>
+      <div class="tabs" role="tablist" id="tabs" aria-label="Chọn thí nghiệm"></div>
+      <div id="exp-panel" role="tabpanel"></div>
+      <div class="log">
+        <h3>Bảng số liệu của em</h3>
+        <div class="tblwrap" id="log"></div>
+        <div class="exp-actions"><button class="btn" id="btn-log" type="button">Ghi số liệu hiện tại</button><button class="btn" id="btn-logclear" type="button">Xoá bảng</button></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- D. THỬ THÁCH VÀ KIỂM TRA -->
+  <section class="card" aria-labelledby="hD">
+    <div class="card-h"><h2 id="hD">Em hãy dự đoán</h2><div class="score" id="score"></div></div>
+    <p class="note" style="margin:0 0 12px">Chọn đáp án rồi nhấn “Kiểm tra”. Em có thể thử lại trên mô phỏng trước khi trả lời.</p>
+    <div class="qgrid" id="quiz"></div>
+    <div class="exp-actions"><button class="btn" id="btn-quizreset" type="button">Làm lại tất cả</button></div>
+  </section>
+
+  <section class="card limits" aria-labelledby="hL">
+    <h2 id="hL">Giới hạn của mô hình</h2>
+    <ul>
+      <li><strong>Hình ảnh là minh họa.</strong> Số phân tử được vẽ ít, độ dịch chuyển được phóng đại và thời gian được làm chậm lại, nên không đúng tỉ lệ thực tế.</li>
+      <li><strong>Âm thuần.</strong> Sóng hình sin chỉ biểu diễn âm có một tần số. Âm thanh thực tế thường là tổ hợp nhiều tần số (họa âm), tạo nên âm sắc.</li>
+      <li><strong>Biên độ tương đối.</strong> Biên độ trong mô hình có đơn vị tương đối, không phải áp suất âm thực tế (Pa) và không được quy đổi sang decibel. Tai người nghe các tần số khác nhau với độ nhạy khác nhau, nên hai âm cùng biên độ nhưng khác tần số có thể nghe to nhỏ khác nhau.</li>
+      <li><strong>Vận tốc gần đúng.</strong> 343 m/s (không khí, khoảng 20 °C), 1480 m/s (nước), 5900 m/s (thép). Giá trị thật phụ thuộc nhiệt độ, áp suất, thành phần và loại vật liệu.</li>
+      <li><strong>Đã lược bớt.</strong> Mô hình bỏ qua sự tắt dần, phản xạ, nhiễu xạ và chuyển động nhiệt hỗn loạn của phân tử; sóng chỉ truyền theo một phương.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+/* ===================================================================
+   THÍ NGHIỆM SÓNG ÂM
+   Cấu trúc: 1) hằng số và trạng thái  2) vật lí  3) vẽ canvas
+             4) kết quả/nhận xét  5) điều khiển  6) âm thanh
+             7) thí nghiệm hướng dẫn  8) câu hỏi dự đoán  9) vòng lặp
+   =================================================================== */
+(function () {
+  "use strict";
+
+  /* ---------- 1. Hằng số và trạng thái ---------- */
+  var TWO_PI = Math.PI * 2;
+  var TIME_SCALE = 1 / 250;      // 1 giây trên màn hình = 4 ms thời gian thật (làm chậm 250 lần)
+  var SLOW = 0.2;                // hệ số thêm khi bấm "Chạy chậm"
+  var T_WINDOW = 0.010;          // cửa sổ thời gian của đồ thị theo thời gian: 10 ms
+  var MAXGAIN = 0.18;            // giới hạn âm lượng (thang 0–1) để an toàn khi nghe
+  var F_MIN = 100, F_MAX = 2000, A_MIN = 0.1, A_MAX = 1.0;
+  var FONT = '"Be Vietnam Pro",system-ui,sans-serif';
+  var MONO = '"JetBrains Mono",ui-monospace,Menlo,monospace';
+
+  // Vận tốc gần đúng; người học có thể chỉnh trong ô "Vận tốc truyền âm v"
+  var MEDIA = {
+    air:   { name: "không khí", v: 343,  note: "Không khí: khoảng 343 m/s ở 20 °C, đổi theo nhiệt độ. Vận tốc phụ thuộc môi trường, không phụ thuộc tần số hay biên độ của nguồn." },
+    water: { name: "nước",      v: 1480, note: "Nước: khoảng 1480 m/s. Âm truyền nhanh hơn trong không khí gần 4,3 lần." },
+    steel: { name: "thép",      v: 5900, note: "Thép: khoảng 5900 m/s. Chất rắn thường truyền âm nhanh hơn chất lỏng và chất khí." },
+    vacuum:{ name: "chân không",v: 0,    note: "Chân không không có phân tử để truyền dao động, nên âm không truyền được." }
+  };
+
+  var state = {
+    A: { amp: 0.5, f: 500 },
+    B: { amp: 0.3, f: 900 },
+    medium: "air", v: 343, win: 3,
+    mode: "space", qty: "xi",
+    slow: false, compare: false, running: true,
+    tReal: 0, probe: 0.5,
+    layers: { mol: true, pc: true, graph: true, mark: true },
+    audioOn: false, audioSrc: "A",
+    ref: null, dirty: true
+  };
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) state.running = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var cvTube = $("cv-tube"), cvGraph = $("cv-graph");
+  var ctxT = cvTube.getContext("2d"), ctxG = cvGraph.getContext("2d");
+  var size = { W: 600, hT: 236, hG: 200 };
+  var geom = { X0: 70, Wt: 500 };   // vị trí ống trên canvas, dùng khi nhấn chọn điểm quan sát
+  var C = {};                        // màu đọc từ biến CSS (theo sáng/tối)
+
+  /* ---------- 2. Vật lí ---------- */
+  function isVac() { return state.medium === "vacuum" || !(state.v > 0); }
+  function tNow() { return state.tReal * TIME_SCALE; }          // thời gian mô phỏng (s)
+  function period(f) { return 1 / f; }                           // T = 1/f
+  function wavelength(v, f) { return v / f; }                    // λ = v/f
+  function speedFrom(lam, f) { return lam * f; }                 // v = λ·f
+  // Li độ tương đối ξ/ξ₀ và biến thiên áp suất tương đối Δp/Δp₀ của sóng chạy theo chiều +x:
+  //   ξ = A·sin(ωt − kx),  Δp ∝ −∂ξ/∂x = A·cos(ωt − kx)
+  function field(wave, x, t) {
+    if (isVac()) return { xi: 0, p: 0 };
+    var w = TWO_PI * wave.f, k = w / state.v, ph = w * t - k * x;
+    return { xi: wave.amp * Math.sin(ph), p: wave.amp * Math.cos(ph) };
+  }
+  function posmod(a, m) { return ((a % m) + m) % m; }
+  function clamp(x, a, b) { return Math.min(b, Math.max(a, x)); }
+
+  /* ---------- Định dạng số kiểu Việt Nam ---------- */
+  function fmt(x, d) { return Number(x).toFixed(d).replace(".", ","); }
+  function fmtN(x) { return String(Number(Number(x).toFixed(1))).replace(".", ","); }
+  function fmtL(x) { return x >= 10 ? fmt(x, 1) : fmt(x, 3); }
+
+  /* ---------- 3. Vẽ canvas ---------- */
+  function hexRgb(h) {
+    h = h.trim();
+    if (h.charAt(0) === "#") {
+      if (h.length === 4) h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+      return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+    }
+    return [128, 128, 128];
+  }
+  function rgba(c, a) { return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a.toFixed(3) + ")"; }
+  function readColors() {
+    var cs = getComputedStyle(document.documentElement);
+    var g = function (n) { return cs.getPropertyValue(n).trim(); };
+    C = {
+      surf: g("--surface"), surf2: g("--surface-2"), ink: g("--ink"), muted: g("--muted"), line: g("--line"),
+      tube: g("--tube"), a: g("--wave-a"), b: g("--wave-b"), mol: g("--mol"), accent: g("--accent"),
+      comp: hexRgb(g("--comp")), rare: hexRgb(g("--rare"))
+    };
+    state.dirty = true;
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+  function txt(ctx, s, x, y, color, font, align) {
+    ctx.fillStyle = color; ctx.font = font; ctx.textAlign = align || "left"; ctx.fillText(s, x, y);
+  }
+  function dblArrow(ctx, x1, x2, y, color) {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1 + 6, y - 3.5); ctx.lineTo(x1 + 6, y + 3.5); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x2, y); ctx.lineTo(x2 - 6, y - 3.5); ctx.lineTo(x2 - 6, y + 3.5); ctx.closePath(); ctx.fill();
+  }
+  function niceStep(L) {
+    var steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100], t = L / 7;
+    for (var i = 0; i < steps.length; i++) if (steps[i] >= t) return steps[i];
+    return 100;
+  }
+  function tickLabel(v, step) { return step < 1 ? fmt(v, 1) : String(Math.round(v)); }
+
+  function resizeCanvases() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var W = Math.max(280, $("stage").clientWidth);
+    size.W = W;
+    size.hT = state.compare ? 330 : 236;
+    size.hG = 210;
+    [[cvTube, ctxT, size.hT], [cvGraph, ctxG, size.hG]].forEach(function (a) {
+      a[0].width = Math.round(W * dpr); a[0].height = Math.round(a[2] * dpr);
+      a[0].style.height = a[2] + "px";
+      a[1].setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+    cvGraph.hidden = !state.layers.graph;
+    state.dirty = true;
+  }
+
+  // Vẽ một ống truyền âm cho một sóng (y0: mép trên, h: chiều cao vùng vẽ)
+  function drawTube(ctx, W, y0, h, wave, col, label) {
+    var X0 = 70, X1 = W - 14, Wt = X1 - X0;
+    var top = y0 + 32, bottom = y0 + h - 30, tH = bottom - top;
+    var L = state.win, vac = isVac(), f = wave.f, w = TWO_PI * f, tS = tNow();
+    var k = vac ? 0 : w / state.v;
+    var lam = vac ? NaN : state.v / f;
+    var lamPx = vac ? 0 : lam / L * Wt;
+    // Độ dời vẽ ra (px) tỉ lệ với biên độ; giới hạn để các phân tử không chồng lên nhau khi λ nhỏ
+    var ampPx = wave.amp * (vac ? 26 : Math.min(26, 0.15 * lamPx));
+    var cont = vac ? 0 : Math.min(1, TWO_PI * ampPx / Math.max(lamPx, 1) / 0.95); // độ tương phản nén – giãn
+    geom.X0 = X0; geom.Wt = Wt;
+
+    txt(ctx, label, 8, y0 + 16, col, "600 13px " + FONT);
+    // ống
+    ctx.fillStyle = C.tube; rr(ctx, X0, top, Wt, tH, 8); ctx.fill();
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.stroke();
+
+    if (vac) {
+      ctx.fillStyle = C.muted; ctx.font = "500 13px " + FONT; ctx.textAlign = "center";
+      ctx.fillText("Chân không: không có phân tử, sóng âm không truyền đi", X0 + Wt / 2, top + tH / 2 + 4);
+    } else {
+      // vùng nén (đỏ) – giãn (xanh): độ đậm tỉ lệ cos(ωt − kx)
+      if (state.layers.pc) {
+        ctx.save(); rr(ctx, X0, top, Wt, tH, 8); ctx.clip();
+        if (lamPx >= 10) {
+          for (var px = 0; px < Wt; px += 2) {
+            var xm = (px + 1) / Wt * L, d = cont * Math.cos(w * tS - k * xm);
+            ctx.fillStyle = d > 0 ? rgba(C.comp, Math.min(0.85, 1.3 * d)) : rgba(C.rare, Math.min(0.8, 1.3 * -d));
+            ctx.fillRect(X0 + px, top, 2, tH);
+          }
+        }
+        ctx.restore();
+      }
+      // phân tử: mỗi phân tử dao động dọc quanh vị trí cân bằng của nó
+      if (state.layers.mol) {
+        if (lamPx >= 22) {
+          var N = Math.max(20, Math.floor(Wt / 5)), R = state.compare ? 4 : 6;
+          var trace = [0.2, 0.5, 0.8].map(function (fr) { return Math.floor(N * fr); });
+          var r, i, ex, ey, dx, xm2;
+          ctx.fillStyle = C.mol; ctx.globalAlpha = 0.9;
+          for (r = 0; r < R; r++) {
+            ey = top + (r + 1) * tH / (R + 1);
+            for (i = 0; i < N; i++) {
+              if (trace.indexOf(i) >= 0) continue;
+              xm2 = (i + 0.5) / N * L;
+              ex = X0 + (i + 0.5) * Wt / N;
+              dx = ampPx * Math.sin(w * tS - k * xm2);
+              ctx.beginPath(); ctx.arc(ex + dx, ey, 2.1, 0, TWO_PI); ctx.fill();
+            }
+          }
+          ctx.globalAlpha = 1;
+          // phân tử đánh dấu + vòng tròn rỗng ở vị trí cân bằng
+          for (r = 0; r < R; r++) {
+            ey = top + (r + 1) * tH / (R + 1);
+            trace.forEach(function (ti) {
+              var xm3 = (ti + 0.5) / N * L, exq = X0 + (ti + 0.5) * Wt / N;
+              var dxq = ampPx * Math.sin(w * tS - k * xm3);
+              ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.2;
+              ctx.beginPath(); ctx.arc(exq, ey, 3.8, 0, TWO_PI); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(exq, ey); ctx.lineTo(exq + dxq, ey); ctx.stroke();
+              ctx.globalAlpha = 1; ctx.fillStyle = col;
+              ctx.beginPath(); ctx.arc(exq + dxq, ey, 3.4, 0, TWO_PI); ctx.fill();
+            });
+          }
+        } else {
+          ctx.fillStyle = C.muted; ctx.font = "500 12.5px " + FONT; ctx.textAlign = "center";
+          ctx.fillText("Bước sóng quá nhỏ so với cửa sổ nên không vẽ rõ từng phân tử. Hãy chọn cửa sổ nhỏ hơn.", X0 + Wt / 2, bottom - 8);
+        }
+      }
+    }
+
+    // nguồn âm: màng loa dao động theo ξ(0,t)
+    var memRest = X0 - 18, disp = ampPx * Math.sin(w * tS);
+    ctx.fillStyle = C.surf2; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    rr(ctx, 8, top + tH * 0.22, 26, tH * 0.56, 5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col; ctx.globalAlpha = 0.28;
+    ctx.beginPath(); ctx.moveTo(34, top + tH * 0.32); ctx.lineTo(memRest + disp, top + 4); ctx.lineTo(memRest + disp, bottom - 4); ctx.lineTo(34, top + tH * 0.68); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillStyle = col;
+    rr(ctx, memRest + disp, top + 4, 8, tH - 8, 3); ctx.fill();
+    txt(ctx, "Nguồn âm", 8, bottom + 18, C.muted, "500 11.5px " + FONT);
+
+    // thước đo chiều dài (m)
+    var step = niceStep(L), y = bottom + 10;
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(X0, y); ctx.lineTo(X1, y); ctx.stroke();
+    for (var m = 0; m <= L + 1e-9; m += step) {
+      var tx = X0 + m / L * Wt;
+      ctx.beginPath(); ctx.moveTo(tx, y); ctx.lineTo(tx, y + 4); ctx.stroke();
+      txt(ctx, tickLabel(m, step), tx, y + 16, C.muted, "11px " + MONO, "center");
+    }
+    txt(ctx, "m", X1, y - 4, C.muted, "11px " + MONO, "right");
+
+    // điểm quan sát x₀
+    var px0 = X0 + state.probe * Wt;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(px0, top + 8); ctx.lineTo(px0, bottom); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = C.ink; ctx.beginPath(); ctx.moveTo(px0 - 5, top - 1); ctx.lineTo(px0 + 5, top - 1); ctx.lineTo(px0, top + 8); ctx.closePath(); ctx.fill();
+    txt(ctx, "x₀", px0 + 8, top + 8, C.ink, "600 11.5px " + FONT);
+
+    // mũi tên đo bước sóng λ giữa hai đỉnh nén liên tiếp
+    if (state.layers.mark && !vac && !state.compare) {
+      var xs = posmod(w * tS, TWO_PI) / k;
+      if (xs < 0.04 * L) xs += lam;
+      if (xs + lam <= L * 0.995) {
+        var ax1 = X0 + xs / L * Wt, ax2 = X0 + (xs + lam) / L * Wt, ay = y0 + 24;
+        dblArrow(ctx, ax1, ax2, ay, C.ink);
+        txt(ctx, "λ = " + fmtL(lam) + " m", (ax1 + ax2) / 2, ay - 6, C.ink, "600 12px " + FONT, "center");
+      } else {
+        txt(ctx, "λ = " + fmtL(lam) + " m, lớn hơn cửa sổ quan sát", X0 + Wt / 2, y0 + 20, C.ink, "600 12px " + FONT, "center");
+      }
+    }
+  }
+
+  function drawGraph(ctx, W, H) {
+    var ML = 70, MR = 14, MT = 32, MB = 38;
+    var x0 = ML, x1 = W - MR, y0 = MT, y1 = H - MB, pw = x1 - x0, ph = y1 - y0, yc = (y0 + y1) / 2, YM = 1.2;
+    var L = state.win, tS = tNow(), vac = isVac();
+    var yOf = function (v) { return yc - v / YM * (ph / 2); };
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.surf2; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = C.surf; rr(ctx, x0, y0, pw, ph, 6); ctx.fill();
+
+    // lưới và trục y
+    var yv = [-1, -0.5, 0, 0.5, 1];
+    yv.forEach(function (v) {
+      ctx.strokeStyle = v === 0 ? C.muted : C.line; ctx.lineWidth = v === 0 ? 1.2 : 1; ctx.setLineDash(v === 0 ? [] : [2, 3]);
+      ctx.beginPath(); ctx.moveTo(x0, yOf(v)); ctx.lineTo(x1, yOf(v)); ctx.stroke();
+      txt(ctx, fmt(v, v % 1 === 0 ? 0 : 1), x0 - 8, yOf(v) + 4, C.muted, "11px " + MONO, "right");
+    });
+    ctx.setLineDash([]);
+    var ytitle = state.qty === "xi" ? "Li độ ξ (tương đối)" : state.qty === "p" ? "Biến thiên áp suất Δp (tương đối)" : "ξ và Δp (tương đối)";
+    txt(ctx, ytitle, 8, 18, C.ink, "600 12.5px " + FONT);
+
+    // trục x
+    var space = state.mode === "space", xtitle;
+    if (space) {
+      var step = niceStep(L);
+      for (var m = 0; m <= L + 1e-9; m += step) {
+        var tx = x0 + m / L * pw;
+        ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(tx, y0); ctx.lineTo(tx, y1); ctx.stroke();
+        txt(ctx, tickLabel(m, step), tx, y1 + 15, C.muted, "11px " + MONO, "center");
+      }
+      xtitle = "Vị trí x (m) · đồ thị theo vị trí tại thời điểm t = " + fmt(tS * 1000, 2) + " ms";
+    } else {
+      for (var ms = -10; ms <= 0; ms += 2) {
+        var tx2 = x0 + (ms + 10) / 10 * pw;
+        ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(tx2, y0); ctx.lineTo(tx2, y1); ctx.stroke();
+        txt(ctx, String(ms), tx2, y1 + 15, C.muted, "11px " + MONO, "center");
+      }
+      xtitle = "Thời gian τ (ms, tính từ lúc hiện tại) · đồ thị theo thời gian tại điểm x₀ = " + fmt(state.probe * L, 2) + " m";
+    }
+    txt(ctx, xtitle, x1, H - 6, C.muted, "500 11.5px " + FONT, "right");
+
+    var waves = [{ w: state.A, col: C.a, name: "Sóng A" }];
+    if (state.compare) waves.push({ w: state.B, col: C.b, name: "Sóng B" });
+    var qtys = state.qty === "both" ? ["xi", "p"] : [state.qty];
+
+    if (vac) {
+      txt(ctx, "Chân không: không có sóng âm truyền tới, đồ thị phẳng", x0 + pw / 2, yc - 10, C.muted, "500 13px " + FONT, "center");
+    }
+
+    // vẽ đường cong
+    var x0m = state.probe * L;
+    function val(wave, q, px) {
+      if (space) return field(wave, (px - x0) / pw * L, tS)[q];
+      return field(wave, x0m, tS + (-T_WINDOW + (px - x0) / pw * T_WINDOW))[q];
+    }
+    waves.forEach(function (o) {
+      qtys.forEach(function (q) {
+        ctx.strokeStyle = o.col; ctx.lineWidth = q === "xi" ? 2.6 : 2; ctx.setLineDash(q === "p" && state.qty === "both" ? [6, 4] : []);
+        ctx.beginPath();
+        for (var px = x0; px <= x1; px += 1.5) {
+          var yy = yOf(val(o.w, q, px));
+          if (px === x0) ctx.moveTo(px, yy); else ctx.lineTo(px, yy);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      });
+    });
+
+    // điểm quan sát x₀ trên đồ thị theo vị trí / vạch "bây giờ" trên đồ thị theo thời gian
+    var mq = state.qty === "p" ? "p" : "xi", mx = space ? x0 + state.probe * pw : x1;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(mx, y0); ctx.lineTo(mx, y1); ctx.stroke(); ctx.setLineDash([]);
+    waves.forEach(function (o) {
+      var vv = space ? field(o.w, state.probe * L, tS)[mq] : field(o.w, x0m, tS)[mq];
+      ctx.fillStyle = o.col; ctx.beginPath(); ctx.arc(mx, yOf(vv), 4.5, 0, TWO_PI); ctx.fill();
+    });
+
+    // chú giải trong đồ thị
+    var lx = x1 - 4, ly = 18;
+    ctx.textAlign = "right";
+    if (state.compare) {
+      txt(ctx, "Sóng B", lx, ly, C.b, "600 12px " + FONT, "right");
+      txt(ctx, "Sóng A", lx - 64, ly, C.a, "600 12px " + FONT, "right");
+    } else if (state.qty === "both") {
+      txt(ctx, "Δp (nét đứt)", lx, ly, C.muted, "600 12px " + FONT, "right");
+      txt(ctx, "ξ (nét liền)", lx - 96, ly, C.a, "600 12px " + FONT, "right");
+    }
+
+    // ghi chú λ hoặc T giữa hai đỉnh liên tiếp (chỉ khi hiển thị một sóng)
+    if (state.layers.mark && !state.compare && !vac) {
+      var A0 = state.A, w = TWO_PI * A0.f, k = w / state.v, off = state.qty === "p" ? 0 : Math.PI / 2;
+      var yb = yOf(Math.min(1.13, A0.amp + 0.15)), ypk = yOf(A0.amp);
+      if (space) {
+        var lam = state.v / A0.f, xs = posmod(w * tS - off, TWO_PI) / k;
+        if (xs + lam <= L) {
+          var p1 = x0 + xs / L * pw, p2 = x0 + (xs + lam) / L * pw;
+          ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(p1, ypk); ctx.lineTo(p1, yb); ctx.moveTo(p2, ypk); ctx.lineTo(p2, yb); ctx.stroke(); ctx.setLineDash([]);
+          dblArrow(ctx, p1, p2, yb, C.ink);
+          txt(ctx, "λ = " + fmtL(lam) + " m", (p1 + p2) / 2, yb - 5, C.ink, "600 12px " + FONT, "center");
+        } else {
+          txt(ctx, "λ = " + fmtL(lam) + " m, lớn hơn cửa sổ quan sát", x0 + pw / 2, y0 + 16, C.ink, "600 12px " + FONT, "center");
+        }
+      } else {
+        var T = 1 / A0.f, phi0 = w * tS - k * x0m - off;
+        var t1 = (TWO_PI * Math.floor(phi0 / TWO_PI) - phi0) / w;      // đỉnh gần nhất trước "bây giờ"
+        if (t1 - T >= -T_WINDOW) {
+          var q1 = x0 + (t1 - T + T_WINDOW) / T_WINDOW * pw, q2 = x0 + (t1 + T_WINDOW) / T_WINDOW * pw;
+          ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(q1, ypk); ctx.lineTo(q1, yb); ctx.moveTo(q2, ypk); ctx.lineTo(q2, yb); ctx.stroke(); ctx.setLineDash([]);
+          dblArrow(ctx, q1, q2, yb, C.ink);
+          txt(ctx, "T = " + fmt(T * 1000, 2) + " ms", (q1 + q2) / 2, yb - 5, C.ink, "600 12px " + FONT, "center");
+        } else {
+          txt(ctx, "T = " + fmt(T * 1000, 2) + " ms, lớn hơn cửa sổ 10 ms", x0 + pw / 2, y0 + 16, C.ink, "600 12px " + FONT, "center");
+        }
+      }
+    }
+  }
+
+  function render() {
+    ctxT.clearRect(0, 0, size.W, size.hT);
+    ctxT.fillStyle = C.surf2; ctxT.fillRect(0, 0, size.W, size.hT);
+    if (state.compare) {
+      var hh = size.hT / 2;
+      drawTube(ctxT, size.W, 0, hh, state.A, C.a, "Sóng A");
+      drawTube(ctxT, size.W, hh, hh, state.B, C.b, "Sóng B");
+    } else {
+      drawTube(ctxT, size.W, 0, size.hT, state.A, C.a, "Nguồn âm đang dao động");
+    }
+    if (state.layers.graph) drawGraph(ctxG, size.W, size.hG);
+    $("t-now").textContent = fmt(tNow() * 1000, 2);
+  }
+
+  /* ---------- 4. Kết quả và nhận xét ---------- */
+  function renderResults() {
+    var vac = isVac(), v = state.v;
+    var ws = [["A", state.A]]; if (state.compare) ws.push(["B", state.B]);
+    var rows = [
+      ["Biên độ (đơn vị tương đối)", function (w) { return fmt(w.amp, 2); }],
+      ["Tần số f", function (w) { return w.f + " Hz"; }],
+      ["Chu kì T = 1/f", function (w) { return "1/" + w.f + " = " + fmt(period(w.f) * 1000, 2) + " ms"; }],
+      ["Bước sóng λ = v/f", function (w) { return vac ? "— (không truyền)" : fmtN(v) + "/" + w.f + " = " + fmtL(wavelength(v, w.f)) + " m"; }],
+      ["Vận tốc v = λ·f", function (w) { return vac ? "—" : fmtL(wavelength(v, w.f)) + " × " + w.f + " = " + fmtN(speedFrom(wavelength(v, w.f), w.f)) + " m/s"; }],
+      ["Số chu kì trong 10 ms", function (w) { return fmt(w.f * T_WINDOW, 1); }],
+      ["Số bước sóng trong cửa sổ", function (w) { return vac ? "—" : fmt(state.win / wavelength(v, w.f), 1); }]
+    ];
+    var h = '<table><thead><tr><th>Đại lượng</th>' + ws.map(function (a) { return '<th class="c-' + a[0].toLowerCase() + '">' + (state.compare ? "Sóng " + a[0] : "Giá trị hiện tại") + "</th>"; }).join("") + "</tr></thead><tbody>";
+    rows.forEach(function (r) { h += "<tr><td>" + r[0] + "</td>" + ws.map(function (a) { return '<td class="n">' + r[1](a[1]) + "</td>"; }).join("") + "</tr>"; });
+    $("results").innerHTML = h + "</tbody></table>";
+
+    var cm = $("comments"); cm.innerHTML = "";
+    commentary().forEach(function (o) { var li = document.createElement("li"); if (o.ref) li.className = "ref"; li.textContent = o.t; cm.appendChild(li); });
+    renderCompare();
+    $("btn-refclear").hidden = !state.ref;
+    $("btn-ref").textContent = state.ref ? "Ghi lại mốc mới" : "Ghi lại làm mốc so sánh";
+  }
+
+  function pitchWord(f) { return f < 300 ? "trầm" : (f <= 1000 ? "trung bình" : "cao (bổng)"); }
+  function loudWord(a) { return a < 0.3 ? "nhỏ" : (a < 0.7 ? "vừa phải" : "to"); }
+
+  function commentary() {
+    var out = [], vac = isVac(), A = state.A;
+    if (vac) out.push({ t: "Môi trường là chân không: nguồn vẫn dao động nhưng không có phân tử nào nhận và truyền dao động, nên sóng âm không truyền đi và không nghe được." });
+    var ws = state.compare ? [["Sóng A: ", A], ["Sóng B: ", state.B]] : [["", A]];
+    ws.forEach(function (a) {
+      out.push({ t: a[0] + "f = " + a[1].f + " Hz nên âm " + pitchWord(a[1].f) + "; biên độ " + fmt(a[1].amp, 2) + " nên âm " + loudWord(a[1].amp) + " (khi phát ở cùng mức âm lượng chuẩn hóa)." });
+    });
+    out.push({ t: "Độ cao của âm do tần số quyết định, độ to do biên độ quyết định. Hai đặc trưng này độc lập: tăng tần số không làm âm to hơn." });
+    if (state.ref) {
+      var r = state.ref, ra = A.amp / r.amp, rf = A.f / r.f, rv = state.v / (r.v || 1);
+      var same = function (x) { return Math.abs(x - 1) < 0.005; };
+      var ch = [];
+      if (!same(ra)) ch.push("amp");
+      if (!same(rf)) ch.push("f");
+      if (!same(rv) || vac !== r.vac) ch.push("v");
+      var msg;
+      if (ch.length === 0) msg = "So với mốc: chưa có đại lượng nào thay đổi.";
+      else if (ch.length > 1) msg = "So với mốc: nhiều đại lượng đã thay đổi cùng lúc. Muốn rút ra kết luận, hãy chỉ đổi một đại lượng mỗi lần và giữ nguyên các đại lượng còn lại.";
+      else if (ch[0] === "amp") msg = "So với mốc: biên độ nhân " + fmt(ra, 2) + " lần, các đại lượng khác giữ nguyên. Đồ thị " + (ra > 1 ? "cao hơn" : "thấp hơn") + " " + fmt(ra, 2) + " lần, vùng nén – giãn " + (ra > 1 ? "rõ hơn" : "mờ hơn") + ", âm " + (ra > 1 ? "to hơn" : "nhỏ hơn") + ". Chu kì, bước sóng và độ cao của âm không đổi.";
+      else if (ch[0] === "f") msg = "So với mốc: tần số nhân " + fmt(rf, 2) + " lần, môi trường giữ nguyên. Chu kì T còn " + fmt(1000 / A.f, 2) + " ms, bước sóng " + (vac ? "" : "còn " + fmtL(wavelength(state.v, A.f)) + " m (v không đổi, λ = v/f) ") + "và âm " + (rf > 1 ? "cao hơn" : "trầm hơn") + ". Biên độ, tức độ to theo mô hình, không đổi.";
+      else msg = vac || r.vac ? "So với mốc: môi trường đã đổi giữa có và không có vật chất. Trong chân không sóng âm không truyền đi." : "So với mốc: vận tốc truyền nhân " + fmt(rv, 2) + " lần, tần số do nguồn quyết định nên không đổi. Bước sóng λ = v/f vì thế cũng nhân " + fmt(rv, 2) + " lần, còn chu kì không đổi.";
+      out.push({ t: msg, ref: true });
+    }
+    return out;
+  }
+
+  function renderCompare() {
+    var box = $("cmpbox");
+    box.hidden = !state.compare;
+    if (!state.compare) return;
+    var A = state.A, B = state.B, vac = isVac(), v = state.v;
+    var lines = [];
+    if (A.f === B.f) lines.push("Hai âm có cùng tần số nên cùng độ cao.");
+    else {
+      var hi = A.f > B.f ? "A" : "B", lo = hi === "A" ? "B" : "A";
+      lines.push("Âm " + hi + " cao hơn (tần số lớn hơn, chu kì ngắn hơn); âm " + lo + " trầm hơn.");
+    }
+    if (Math.abs(A.amp - B.amp) < 0.005) lines.push("Hai âm có cùng biên độ nên nghe to như nhau (khi phát ở cùng mức chuẩn hóa).");
+    else lines.push("Âm " + (A.amp > B.amp ? "A" : "B") + " to hơn (biên độ lớn hơn) khi phát ở cùng mức âm lượng chuẩn hóa.");
+    if (!vac && A.f !== B.f) lines.push("Trong cùng môi trường, âm có tần số lớn hơn có bước sóng ngắn hơn (λ = v/f).");
+    lines.push("Độ cao và độ to là hai đặc trưng khác nhau: một âm có thể vừa cao vừa nhỏ, hoặc vừa trầm vừa to.");
+    var h = '<h3>Bảng kết luận so sánh hai âm</h3><div class="tblwrap"><table><thead><tr><th>Đặc trưng</th><th class="c-a">Sóng A</th><th class="c-b">Sóng B</th></tr></thead><tbody>';
+    h += "<tr><td>Biên độ</td><td class='n'>" + fmt(A.amp, 2) + "</td><td class='n'>" + fmt(B.amp, 2) + "</td></tr>";
+    h += "<tr><td>Độ to (mô hình)</td><td>" + loudWord(A.amp) + "</td><td>" + loudWord(B.amp) + "</td></tr>";
+    h += "<tr><td>Tần số</td><td class='n'>" + A.f + " Hz</td><td class='n'>" + B.f + " Hz</td></tr>";
+    h += "<tr><td>Độ cao</td><td>" + pitchWord(A.f) + "</td><td>" + pitchWord(B.f) + "</td></tr>";
+    h += "<tr><td>Chu kì T</td><td class='n'>" + fmt(1000 / A.f, 2) + " ms</td><td class='n'>" + fmt(1000 / B.f, 2) + " ms</td></tr>";
+    h += "<tr><td>Bước sóng λ</td><td class='n'>" + (vac ? "—" : fmtL(v / A.f) + " m") + "</td><td class='n'>" + (vac ? "—" : fmtL(v / B.f) + " m") + "</td></tr></tbody></table></div><ul class=\"cm\">";
+    lines.forEach(function (s) { h += "<li>" + s + "</li>"; });
+    box.innerHTML = h + "</ul>";
+  }
+
+  /* ---------- 5. Điều khiển ---------- */
+  function waveControls(id, mount) {
+    mount.innerHTML =
+      '<div class="ctl"><label for="amp-' + id + '">Biên độ <span class="unit">(đơn vị tương đối, 0,1 – 1,0)</span></label>' +
+      '<div class="srow"><input type="range" id="amp-' + id + '" min="0.1" max="1" step="0.05"><output class="val" id="ampv-' + id + '"></output></div>' +
+      '<div class="mini"><button class="btn sm" type="button" id="ah-' + id + '">÷ 2</button><button class="btn sm" type="button" id="ad-' + id + '">× 2</button></div>' +
+      '<p class="hint">Biên độ lớn hơn thì đồ thị cao hơn, vùng nén – giãn rõ hơn và âm nghe to hơn (trong cùng điều kiện truyền âm).</p></div>' +
+      '<div class="ctl"><label for="f-' + id + '">Tần số f</label>' +
+      '<div class="srow"><input type="range" id="f-' + id + '" min="100" max="2000" step="10"><span class="numwrap"><input type="number" id="fn-' + id + '" min="100" max="2000" step="10" inputmode="numeric"> Hz</span></div>' +
+      '<div class="mini"><button class="btn sm" type="button" id="fh-' + id + '">÷ 2</button><button class="btn sm" type="button" id="fd-' + id + '">× 2</button></div>' +
+      '<p class="hint">Tần số càng lớn thì âm càng cao (bổng); tần số càng nhỏ thì âm càng trầm.</p></div>';
+    var w = state[id];
+    var setAmp = function (a) { w.amp = clamp(Math.round(a * 100) / 100, A_MIN, A_MAX); changed(); };
+    var setF = function (f) { f = Math.round(Number(f)); if (!isFinite(f)) return; w.f = clamp(f, F_MIN, F_MAX); changed(); };
+    $("amp-" + id).addEventListener("input", function (e) { setAmp(parseFloat(e.target.value)); });
+    $("f-" + id).addEventListener("input", function (e) { setF(e.target.value); });
+    $("fn-" + id).addEventListener("change", function (e) { setF(e.target.value); });
+    $("ah-" + id).addEventListener("click", function () { setAmp(w.amp / 2); });
+    $("ad-" + id).addEventListener("click", function () { setAmp(w.amp * 2); });
+    $("fh-" + id).addEventListener("click", function () { setF(w.f / 2); });
+    $("fd-" + id).addEventListener("click", function () { setF(w.f * 2); });
+  }
+
+  function syncUI() {
+    ["A", "B"].forEach(function (id) {
+      var w = state[id];
+      $("amp-" + id).value = w.amp; $("ampv-" + id).textContent = fmt(w.amp, 2);
+      $("f-" + id).value = w.f; $("fn-" + id).value = w.f;
+    });
+    $("leg-A").textContent = state.compare ? "Sóng A" : "Sóng âm";
+    $("grp-B").hidden = !state.compare;
+    $("grp-asrc").hidden = !state.compare;
+    $("chk-compare").checked = state.compare;
+    $("btn-run").textContent = state.running ? "Tạm dừng" : "Bắt đầu";
+    $("btn-slow").setAttribute("aria-pressed", String(state.slow));
+    $("btn-audio").setAttribute("aria-pressed", String(state.audioOn));
+    $("btn-audio").textContent = state.audioOn ? "Tắt âm thanh" : "Bật âm thanh";
+    document.querySelectorAll('input[name="mode"]').forEach(function (r) { r.checked = r.value === state.mode; });
+    document.querySelectorAll('input[name="qty"]').forEach(function (r) { r.checked = r.value === state.qty; });
+    document.querySelectorAll('input[name="medium"]').forEach(function (r) { r.checked = r.value === state.medium; });
+    $("vin").value = isVac() ? "" : state.v; $("vin").disabled = state.medium === "vacuum"; $("vreset").disabled = state.medium === "vacuum";
+    $("med-note").textContent = MEDIA[state.medium].note;
+    $("win").value = String(state.win);
+    $("ly-mol").checked = state.layers.mol; $("ly-pc").checked = state.layers.pc;
+    $("ly-graph").checked = state.layers.graph; $("ly-mark").checked = state.layers.mark;
+    $("mode-note").textContent = state.mode === "space"
+      ? "Theo vị trí: ảnh chụp cả đường sóng tại một thời điểm, trục ngang là vị trí x. Khoảng cách giữa hai đỉnh liên tiếp là bước sóng λ."
+      : "Theo thời gian: dao động tại một điểm cố định x₀, trục ngang là thời gian. Khoảng cách giữa hai đỉnh liên tiếp là chu kì T.";
+    $("asrc").value = state.audioSrc;
+    $("scale-note").textContent = "1 s trên màn hình ≈ " + fmt(1000 * TIME_SCALE * (state.slow ? SLOW : 1), 1) + " ms thật";
+  }
+
+  // Gọi mỗi khi thông số thay đổi
+  function changed() { syncUI(); renderResults(); updateAudio(); state.dirty = true; }
+
+  function setMedium(key) {
+    state.medium = key; state.v = MEDIA[key].v || state.v;
+  }
+
+  function resetAll() {
+    state.A = { amp: 0.5, f: 500 }; state.B = { amp: 0.3, f: 900 };
+    state.medium = "air"; state.v = 343; state.win = 3; state.mode = "space"; state.qty = "xi";
+    state.slow = false; state.compare = false; state.probe = 0.5; state.tReal = 0; state.running = true;
+    state.layers = { mol: true, pc: true, graph: true, mark: true }; state.ref = null; state.audioSrc = "A";
+    resizeCanvases(); changed();
+  }
+
+  function applyPreset(p) {
+    if (p.A) state.A = { amp: p.A.amp, f: p.A.f };
+    if (p.B) state.B = { amp: p.B.amp, f: p.B.f };
+    if (p.medium) setMedium(p.medium);
+    if (p.win) state.win = p.win;
+    if (p.mode) state.mode = p.mode;
+    if (p.qty) state.qty = p.qty;
+    if (typeof p.compare === "boolean") state.compare = p.compare;
+    state.layers = { mol: true, pc: true, graph: true, mark: true };
+    state.ref = null;
+    resizeCanvases(); changed();
+  }
+
+  function bindControls() {
+    waveControls("A", $("ctl-A")); waveControls("B", $("ctl-B"));
+    $("btn-run").addEventListener("click", function () { state.running = !state.running; changed(); });
+    $("btn-reset").addEventListener("click", resetAll);
+    $("btn-slow").addEventListener("click", function () { state.slow = !state.slow; changed(); });
+    $("btn-audio").addEventListener("click", function () { if (state.audioOn) stopAudio(); else startAudio(); syncUI(); });
+    document.querySelectorAll('input[name="mode"]').forEach(function (r) { r.addEventListener("change", function () { if (r.checked) { state.mode = r.value; changed(); } }); });
+    document.querySelectorAll('input[name="qty"]').forEach(function (r) { r.addEventListener("change", function () { if (r.checked) { state.qty = r.value; changed(); } }); });
+    document.querySelectorAll('input[name="medium"]').forEach(function (r) { r.addEventListener("change", function () { if (r.checked) { setMedium(r.value); changed(); } }); });
+    $("vin").addEventListener("change", function (e) { var v = parseFloat(e.target.value); if (v > 0) { state.v = clamp(v, 1, 10000); } changed(); });
+    $("vreset").addEventListener("click", function () { if (MEDIA[state.medium].v) state.v = MEDIA[state.medium].v; changed(); });
+    $("win").addEventListener("change", function (e) { state.win = parseFloat(e.target.value); changed(); });
+    $("chk-compare").addEventListener("change", function (e) { state.compare = e.target.checked; if (!state.compare) { state.audioSrc = "A"; } resizeCanvases(); changed(); });
+    $("asrc").addEventListener("change", function (e) { state.audioSrc = e.target.value; updateAudio(); });
+    [["ly-mol", "mol"], ["ly-pc", "pc"], ["ly-graph", "graph"], ["ly-mark", "mark"]].forEach(function (a) {
+      $(a[0]).addEventListener("change", function (e) { state.layers[a[1]] = e.target.checked; resizeCanvases(); state.dirty = true; });
+    });
+    $("btn-ref").addEventListener("click", function () { state.ref = { amp: state.A.amp, f: state.A.f, v: state.v, vac: isVac() }; renderResults(); });
+    $("btn-refclear").addEventListener("click", function () { state.ref = null; renderResults(); });
+    // đặt điểm quan sát bằng cách nhấn vào ống
+    cvTube.addEventListener("pointerdown", function (e) {
+      var rect = cvTube.getBoundingClientRect(), x = e.clientX - rect.left;
+      var fr = (x - geom.X0) / geom.Wt;
+      if (fr >= 0 && fr <= 1) { state.probe = clamp(fr, 0.02, 0.98); state.dirty = true; }
+    });
+  }
+
+  /* ---------- 6. Âm thanh (Web Audio API) ---------- */
+  var audio = { ctx: null, osc: null, gain: null, ok: true };
+  var AC = window.AudioContext || window.webkitAudioContext;
+  function audioWave() { return (state.audioSrc === "B" && state.compare) ? state.B : state.A; }
+  function startAudio() {
+    if (!AC) return;
+    try {
+      if (!audio.ctx) audio.ctx = new AC();
+      if (audio.ctx.resume) audio.ctx.resume();
+      var osc = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+      g.gain.value = 0; osc.type = "sine"; osc.frequency.value = audioWave().f;
+      osc.connect(g); g.connect(audio.ctx.destination); osc.start();
+      audio.osc = osc; audio.gain = g; state.audioOn = true; updateAudio();
+    } catch (e) {
+      state.audioOn = false; audio.ok = false;
+      $("audio-note").hidden = false; $("audio-note").textContent = "Không bật được âm thanh trên trình duyệt này. Phần mô phỏng đồ họa vẫn hoạt động đầy đủ.";
+    }
+  }
+  function stopAudio() {
+    state.audioOn = false;
+    if (!audio.osc) return;
+    var o = audio.osc, g = audio.gain, t = audio.ctx.currentTime;
+    audio.osc = null; audio.gain = null;
+    try { g.gain.setTargetAtTime(0, t, 0.02); } catch (e) {}
+    setTimeout(function () { try { o.stop(); o.disconnect(); g.disconnect(); } catch (e) {} }, 150);
+  }
+  // Âm lượng mô phỏng tỉ lệ với biên độ tương đối, luôn ≤ MAXGAIN; tạm dừng hoặc chân không thì tắt tiếng
+  function updateAudio() {
+    var note = $("audio-note");
+    if (!AC) { $("btn-audio").disabled = true; note.hidden = false; note.textContent = "Trình duyệt không hỗ trợ âm thanh. Phần mô phỏng đồ họa vẫn hoạt động đầy đủ."; return; }
+    if (state.audioOn) {
+      if (isVac()) { note.hidden = false; note.textContent = "Chân không: không có môi trường truyền âm nên âm thanh được tắt tiếng."; }
+      else if (!state.running) { note.hidden = false; note.textContent = "Đang tạm dừng nên âm thanh tắt tiếng."; }
+      else { note.hidden = false; note.textContent = "Âm lượng mô phỏng tỉ lệ với biên độ tương đối và được giữ ở mức nhỏ. Hãy để âm lượng thiết bị thấp khi thử."; }
+    } else if (audio.ok) note.hidden = true;
+    if (!audio.osc) return;
+    var t = audio.ctx.currentTime, w = audioWave();
+    audio.osc.frequency.setTargetAtTime(w.f, t, 0.02);
+    audio.gain.gain.setTargetAtTime((state.running && !isVac()) ? MAXGAIN * w.amp : 0, t, 0.03);
+  }
+  document.addEventListener("visibilitychange", function () { if (document.hidden && state.audioOn) { stopAudio(); syncUI(); } });
+
+  /* ---------- 7. Thí nghiệm có hướng dẫn ---------- */
+  var EXPS = [
+    { tab: "TN1 · Biên độ", title: "Thí nghiệm 1: Khảo sát ảnh hưởng của biên độ",
+      goal: "Tìm mối liên hệ giữa biên độ dao động và độ to của âm. Giữ nguyên tần số và môi trường.",
+      preset: { A: { amp: 0.2, f: 500 }, medium: "air", win: 3, mode: "space", qty: "xi", compare: false },
+      steps: [
+        "Nhấn “Thiết lập sẵn”: f = 500 Hz, môi trường không khí, biên độ 0,2.",
+        "Quan sát độ cao của đồ thị, độ đậm của vùng nén (đỏ) và vùng giãn (xanh), và quãng dao động của các phân tử đánh dấu màu cam.",
+        "Tăng biên độ lần lượt 0,2 → 0,5 → 0,8 → 1,0. Mỗi lần nhấn “Ghi số liệu hiện tại”.",
+        "Bật âm thanh (để âm lượng thiết bị thấp) và nghe: âm to dần nhưng độ cao không đổi.",
+        "Nhìn bảng số liệu: T, λ và v có thay đổi theo biên độ không?"
+      ],
+      ask: "Biên độ tăng gấp đôi thì đồ thị cao gấp mấy lần?",
+      concl: "Biên độ lớn hơn thì đồ thị cao hơn, vùng nén – giãn rõ hơn và âm nghe to hơn (cùng điều kiện truyền và cùng mức âm lượng chuẩn hóa). Biên độ không làm thay đổi tần số, chu kì, bước sóng hay vận tốc truyền âm, nên độ cao của âm không đổi." },
+    { tab: "TN2 · Tần số", title: "Thí nghiệm 2: Khảo sát ảnh hưởng của tần số",
+      goal: "Tìm mối liên hệ giữa tần số và độ cao của âm. Giữ nguyên biên độ và môi trường.",
+      preset: { A: { amp: 0.5, f: 100 }, medium: "air", win: 3, mode: "time", qty: "xi", compare: false },
+      steps: [
+        "Nhấn “Thiết lập sẵn”: biên độ 0,5, không khí, f = 100 Hz, chế độ quan sát theo thời gian.",
+        "Đếm số chu kì có trong cửa sổ 10 ms (đối chiếu với dòng “Số chu kì trong 10 ms” ở phần kết quả).",
+        "Tăng tần số lần lượt 100 → 250 → 500 → 1000 → 2000 Hz. Mỗi lần ghi số liệu.",
+        "Chuyển sang chế độ “Theo vị trí” và quan sát bước sóng λ ngắn dần. Nếu phân tử không còn rõ, hãy chọn cửa sổ 1 m.",
+        "Bật âm thanh và nghe: âm cao dần, trong khi biên độ đồ thị không đổi."
+      ],
+      ask: "Tăng tần số gấp đôi thì chu kì T và bước sóng λ thay đổi thế nào?",
+      concl: "Tần số càng lớn thì âm càng cao (bổng), tần số càng nhỏ thì âm càng trầm. Khi f tăng, chu kì T = 1/f giảm và bước sóng λ = v/f giảm (v không đổi trong cùng môi trường). Biên độ không đổi nên không thể kết luận âm to hơn." },
+    { tab: "TN3 · Môi trường", title: "Thí nghiệm 3: Khảo sát sự truyền âm trong các môi trường",
+      goal: "So sánh vận tốc truyền âm và bước sóng trong các môi trường. Giữ nguyên tần số của nguồn.",
+      preset: { A: { amp: 0.5, f: 500 }, medium: "air", win: 10, mode: "space", qty: "xi", compare: false },
+      steps: [
+        "Nhấn “Thiết lập sẵn”: f = 500 Hz, biên độ 0,5, môi trường không khí, cửa sổ 10 m. Ghi số liệu.",
+        "Chọn “Nước”, rồi “Thép”; mỗi lần ghi số liệu. Thép có λ lớn hơn cửa sổ, hãy đổi cửa sổ sang 30 m để thấy trọn một bước sóng.",
+        "So sánh v và λ trong ba môi trường. Tần số f và chu kì T có đổi không?",
+        "Chọn “Chân không”: nguồn vẫn dao động, nhưng sóng có truyền đi không?",
+        "Em có thể sửa ô “Vận tốc truyền âm v” để thử một giá trị khác và xem λ = v/f thay đổi."
+      ],
+      ask: "Vì sao tần số không đổi khi sóng đi từ môi trường này sang môi trường khác?",
+      concl: "Tần số do nguồn âm quyết định nên không đổi. Vận tốc truyền phụ thuộc môi trường (thép > nước > không khí), nên bước sóng λ = v/f thay đổi theo. Âm truyền được trong môi trường vật chất, không truyền được trong chân không." },
+    { tab: "TN4 · So sánh hai âm", title: "Thí nghiệm 4: So sánh hai âm",
+      goal: "Hiển thị hai sóng A và B có biên độ và tần số độc lập để phân biệt âm cao – thấp với âm to – nhỏ.",
+      preset: { A: { amp: 0.8, f: 300 }, B: { amp: 0.3, f: 900 }, medium: "air", win: 3, mode: "space", qty: "xi", compare: true },
+      steps: [
+        "Nhấn “Thiết lập sẵn”: A có biên độ 0,8 và f = 300 Hz; B có biên độ 0,3 và f = 900 Hz.",
+        "Quan sát hai đường sóng cam (A) và tím (B). Xác định âm nào cao hơn (chu kì ngắn hơn) và âm nào to hơn (biên độ lớn hơn).",
+        "Đọc bảng kết luận ở phần kết quả. Trong “Âm thanh phát ra từ”, chọn A hoặc B và bật âm thanh để nghe.",
+        "Cho hai âm cùng tần số nhưng khác biên độ. Rồi cho hai âm cùng biên độ nhưng khác tần số. Bảng kết luận thay đổi thế nào?",
+        "Tạo một âm vừa cao vừa nhỏ và một âm vừa trầm vừa to."
+      ],
+      ask: "Một âm có tần số cao hơn có chắc chắn nghe to hơn không?",
+      concl: "Không. Độ cao phụ thuộc vào tần số, độ to phụ thuộc vào biên độ. Hai đại lượng này độc lập: hai âm cùng biên độ, khác tần số thì khác độ cao; hai âm cùng tần số, khác biên độ thì khác độ to." }
+  ];
+  var expIdx = 0, logRows = [];
+
+  function renderExp() {
+    var tabs = $("tabs"); tabs.innerHTML = "";
+    EXPS.forEach(function (e, i) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "tab"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(i === expIdx));
+      b.textContent = e.tab; b.addEventListener("click", function () { expIdx = i; renderExp(); });
+      tabs.appendChild(b);
+    });
+    var e = EXPS[expIdx], p = $("exp-panel"); p.innerHTML = "";
+    var h = document.createElement("h3"); h.textContent = e.title; p.appendChild(h);
+    var g = document.createElement("p"); g.className = "exp-goal"; g.textContent = e.goal; p.appendChild(g);
+    var ol = document.createElement("ol"); ol.className = "steps";
+    e.steps.forEach(function (s) { var li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+    p.appendChild(ol);
+    var q = document.createElement("p"); q.innerHTML = "<strong>Câu hỏi:</strong> "; q.appendChild(document.createTextNode(e.ask)); p.appendChild(q);
+    var act = document.createElement("div"); act.className = "exp-actions";
+    var bs = document.createElement("button"); bs.type = "button"; bs.className = "btn primary"; bs.textContent = "Thiết lập sẵn cho thí nghiệm này";
+    bs.addEventListener("click", function () { applyPreset(e.preset); });
+    act.appendChild(bs); p.appendChild(act);
+    var d = document.createElement("details"); var s = document.createElement("summary"); s.textContent = "Xem kết luận";
+    var dp = document.createElement("p"); dp.textContent = e.concl; d.appendChild(s); d.appendChild(dp); p.appendChild(d);
+  }
+
+  function renderLog() {
+    var el = $("log");
+    if (!logRows.length) { el.innerHTML = '<p class="empty">Chưa có số liệu. Nhấn “Ghi số liệu hiện tại” sau mỗi lần thay đổi thông số.</p>'; return; }
+    var h = "<table><thead><tr><th>#</th><th>Sóng</th><th>Môi trường</th><th>Biên độ</th><th>f (Hz)</th><th>T (ms)</th><th>λ (m)</th><th>v (m/s)</th></tr></thead><tbody>";
+    logRows.forEach(function (r, i) {
+      h += "<tr><td class='n'>" + (i + 1) + "</td><td>" + r.w + "</td><td>" + r.m + "</td><td class='n'>" + r.a + "</td><td class='n'>" + r.f + "</td><td class='n'>" + r.T + "</td><td class='n'>" + r.l + "</td><td class='n'>" + r.v + "</td></tr>";
+    });
+    el.innerHTML = h + "</tbody></table>";
+  }
+  function addLog() {
+    var vac = isVac(), list = [["A", state.A]]; if (state.compare) list.push(["B", state.B]);
+    list.forEach(function (a) {
+      var w = a[1];
+      logRows.push({ w: a[0], m: MEDIA[state.medium].name, a: fmt(w.amp, 2), f: w.f, T: fmt(period(w.f) * 1000, 2),
+        l: vac ? "—" : fmtL(wavelength(state.v, w.f)), v: vac ? "—" : fmtN(state.v) });
+    });
+    if (logRows.length > 24) logRows = logRows.slice(logRows.length - 24);
+    renderLog();
+  }
+
+  /* ---------- 8. Em hãy dự đoán ---------- */
+  var QUIZ = [
+    { q: "Giữ nguyên tần số và môi trường, tăng biên độ dao động của nguồn âm lên gấp đôi. Điều gì xảy ra?",
+      opts: ["Âm trở nên cao hơn vì dao động mạnh hơn.",
+             "Đồ thị có biên độ lớn gấp đôi và âm nghe to hơn; độ cao, chu kì và bước sóng không đổi.",
+             "Bước sóng tăng gấp đôi.",
+             "Vận tốc truyền âm tăng gấp đôi."], ans: 1,
+      exp: "Biên độ chỉ cho biết dao động mạnh hay yếu, liên quan đến độ to. Chu kì T = 1/f, bước sóng λ = v/f và vận tốc v (do môi trường quyết định) đều không phụ thuộc biên độ." },
+    { q: "Trong cùng một môi trường, tăng tần số của nguồn lên gấp đôi thì bước sóng thay đổi thế nào?",
+      opts: ["Tăng gấp đôi.", "Giảm đi một nửa.", "Không đổi.", "Tăng gấp bốn."], ans: 1,
+      exp: "Vận tốc v không đổi trong cùng môi trường, nên λ = v/f tỉ lệ nghịch với f. f gấp đôi thì λ giảm một nửa (chu kì T cũng giảm một nửa)." },
+    { q: "Âm trầm và âm bổng khác nhau chủ yếu ở đại lượng nào?",
+      opts: ["Biên độ dao động.", "Tần số dao động.", "Vận tốc truyền âm trong không khí.", "Khoảng cách từ nguồn đến người nghe."], ans: 1,
+      exp: "Độ cao của âm (trầm – bổng) phụ thuộc chủ yếu vào tần số: tần số lớn thì âm cao (bổng), tần số nhỏ thì âm trầm. Độ to phụ thuộc chủ yếu vào biên độ." },
+    { q: "Vì sao âm không truyền được trong chân không?",
+      opts: ["Vì trong chân không nhiệt độ quá thấp.",
+             "Vì sóng âm là sóng cơ, cần môi trường vật chất để truyền dao động từ phân tử này sang phân tử khác; chân không không có vật chất.",
+             "Vì tần số của âm giảm về 0 trong chân không.",
+             "Vì âm chỉ truyền được khi có ánh sáng."], ans: 1,
+      exp: "Sóng cơ cần phân tử của môi trường để truyền dao động. Ở Thí nghiệm 3, chọn “Chân không”: nguồn vẫn dao động nhưng không có phân tử nào nhận và truyền dao động đi." },
+    { q: "Trong mô hình này, vì sao các phân tử không khí chỉ dao động quanh vị trí cân bằng mà không chuyển động theo sóng từ nguồn đến người nghe?",
+      opts: ["Vì sóng truyền đi trạng thái dao động và năng lượng; mỗi phân tử chỉ dao động nhỏ dọc phương truyền rồi tác dụng lên phân tử bên cạnh, nên vật chất không bị đưa đi xa.",
+             "Vì các phân tử bị gắn cố định vào nhau như trong vật rắn.",
+             "Vì sóng âm là sóng ngang nên phân tử chỉ chuyển động lên xuống.",
+             "Vì phân tử không khí đứng yên hoàn toàn, không dao động."], ans: 0,
+      exp: "Hãy nhìn các phân tử đánh dấu màu cam: chúng đi tới đi lui quanh vòng tròn rỗng (vị trí cân bằng), còn vùng nén – giãn thì lan ra xa. Thực tế phân tử khí còn chuyển động nhiệt hỗn loạn; mô hình chỉ vẽ phần dao động do sóng gây ra." }
+  ];
+  var quizState = [];   // mỗi câu: { order:[...], result:null|true|false }
+
+  function shuffle(n) { var a = []; for (var i = 0; i < n; i++) a.push(i); for (i = n - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  function buildQuestion(qi, keepResult) {
+    var item = QUIZ[qi];
+    if (!quizState[qi]) quizState[qi] = {};
+    var st = quizState[qi]; st.order = shuffle(item.opts.length); st.result = null;
+    var card = document.createElement("div"); card.className = "q"; card.id = "q" + qi;
+    var h = document.createElement("h3"); h.textContent = (qi + 1) + ". " + item.q; card.appendChild(h);
+    var fs = document.createElement("fieldset"); fs.className = "opts";
+    var lg = document.createElement("legend"); lg.className = "lbl"; lg.style.position = "absolute"; lg.style.left = "-9999px"; lg.textContent = "Các đáp án của câu " + (qi + 1); fs.appendChild(lg);
+    st.order.forEach(function (oi) {
+      var lab = document.createElement("label"); lab.className = "opt";
+      var inp = document.createElement("input"); inp.type = "radio"; inp.name = "quiz" + qi; inp.value = String(oi);
+      var sp = document.createElement("span"); sp.textContent = item.opts[oi];
+      lab.appendChild(inp); lab.appendChild(sp); fs.appendChild(lab);
+    });
+    card.appendChild(fs);
+    var fb = document.createElement("div"); fb.className = "fb"; fb.hidden = true; fb.setAttribute("role", "status"); card.appendChild(fb);
+    var row = document.createElement("div"); row.className = "exp-actions";
+    var bc = document.createElement("button"); bc.type = "button"; bc.className = "btn primary"; bc.textContent = "Kiểm tra";
+    var br = document.createElement("button"); br.type = "button"; br.className = "btn"; br.textContent = "Làm lại";
+    bc.addEventListener("click", function () {
+      var sel = card.querySelector('input[name="quiz' + qi + '"]:checked');
+      fb.hidden = false;
+      if (!sel) { fb.className = "fb bad"; fb.textContent = "Em hãy chọn một đáp án trước khi kiểm tra."; return; }
+      var ok = parseInt(sel.value, 10) === item.ans;
+      st.result = ok; fb.className = "fb " + (ok ? "ok" : "bad");
+      fb.textContent = (ok ? "Chính xác. " : "Chưa đúng. ") + item.exp;
+      updateScore();
+    });
+    br.addEventListener("click", function () { var nc = buildQuestion(qi); card.replaceWith(nc); updateScore(); });
+    row.appendChild(bc); row.appendChild(br); card.appendChild(row);
+    return card;
+  }
+  function renderQuiz() {
+    var box = $("quiz"); box.innerHTML = "";
+    quizState = [];
+    QUIZ.forEach(function (_, i) { box.appendChild(buildQuestion(i)); });
+    updateScore();
+  }
+  function updateScore() {
+    var done = 0, right = 0;
+    quizState.forEach(function (s) { if (s && s.result !== null && s.result !== undefined) { done++; if (s.result) right++; } });
+    $("score").textContent = "Đã trả lời " + done + "/" + QUIZ.length + " · Đúng " + right;
+  }
+
+  /* ---------- 9. Khởi tạo và vòng lặp ---------- */
+  var last = performance.now(), frame = 0;
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (state.running) { state.tReal += dt * (state.slow ? SLOW : 1); state.dirty = true; }
+    if (++frame % 90 === 0) readColors();
+    if (state.dirty) { render(); state.dirty = false; }
+    requestAnimationFrame(loop);
+  }
+
+  function init() {
+    readColors();
+    bindControls();
+    renderExp(); renderLog(); renderQuiz();
+    $("btn-log").addEventListener("click", addLog);
+    $("btn-logclear").addEventListener("click", function () { logRows = []; renderLog(); });
+    $("btn-quizreset").addEventListener("click", renderQuiz);
+    resizeCanvases(); changed();
+    if (window.ResizeObserver) new ResizeObserver(function () { resizeCanvases(); }).observe($("stage"));
+    window.addEventListener("resize", resizeCanvases);
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      if (mq.addEventListener) mq.addEventListener("change", readColors);
+    }
+    new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { state.dirty = true; });
+    requestAnimationFrame(loop);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
